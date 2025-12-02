@@ -1,0 +1,140 @@
+---
+# Install hashicorp vault
+# Gather installed Packages
+- name: Gather package facts
+  package_facts:
+    manager: apt
+
+# Load variables
+- name: Load ubuntu variables
+  include_vars: "{{ role_path }}/vars/ubuntu.yml"
+
+# install Hashi corp vault
+- name: Block to install hashicorp vault
+  when: '"vault" not in ansible_facts.packages'
+  block:
+    - name: install Hashicorp gpg key
+      apt_key:
+        url: "{{ hashicorp_repo_key_url }}"
+        state: present
+      register: gpg_key
+
+    - name: Add HashiCorp APT repository
+      apt_repository:
+        repo: "deb {{ hashicorp_repo_url }} {{ ansible_facts.lsb.codename }} main"
+        filename: "hashicorp"
+        state: present
+
+    - name: Install Hashicorp vault
+      apt:
+        name: vault
+        state: present
+        update_cache: yes
+
+- name: Create vault storage
+  file:
+    path: /opt/vault/data
+    state: directory
+    mode: u=rwx,g=rx,o=rx
+    owner: vault
+    group: vault
+
+- name: Copy vault config file
+  template:
+    src: vault.hcl.j2
+    dest: /etc/vault.d/vault.hcl
+    backup: true
+
+- name: Just force systemd to reread configs
+  systemd_service:
+    daemon_reload: true
+
+- name: Start vault
+  systemd_service:
+    name: vault
+    state: restarted
+    enabled: true
+    daemon_reload: true
+
+- name: Setup Firewall rule
+  firewalld:
+    port: "{{ vault_port }}/tcp"
+    permanent: true
+    state: enabled
+  when: '"firewalld" in ansible_facts.packages'
+
+- debug:
+    msg: "{{ vault_addr }}, {{ vault_tls_enabled }}"
+
+- name: Initialize vault
+  no_log: false
+  command:
+    cmd: vault operator init -format json
+  environment: 
+    VAULT_ADDR: "{{ vault_addr }}"
+  register: vault_init
+
+- name: vault Initialization data
+  no_log: true
+  set_fact:
+    vault_init_data: "{{ vault_init.stdout | from_json }}"
+
+- name: Save vault Initialization data
+  copy:
+    content: "{{ vault_init_data | to_nice_json(indent=2) }}"
+    dest: "{{ vault_storage_path }}/init_data.json"
+    backup: true
+
+- name: Unseal the vault
+  no_log: true
+  environment: 
+    VAULT_ADDR: "{{ vault_addr }}"
+  command:
+    cmd: "vault operator unseal -format json {{ item }}"
+  loop: "{{ vault_init_data.unseal_keys_b64[:3] }}"
+
+- name: Vault status
+  no_log: true
+  environment: 
+    VAULT_ADDR: "{{ vault_addr }}"
+  command:
+    cmd: "vault status -format json"
+  register: vault_status
+
+- name: Show vault status
+  debug:
+    msg: "{{ vault_status }}"
+
+- name: Create auth role for approle jenkins
+  no_log: true
+  environment: 
+    VAULT_ADDR: "{{ vault_addr }}"
+  command:
+    cmd: |-
+      vault auth enable approle
+      vault write auth/approle/role/jenkins-role token_num_uses=0 secret_id_num_uses=0 policies="jenkins"
+
+- name: read role ID
+  no_log: true
+  environment: 
+    VAULT_ADDR: "{{ vault_addr }}"
+  command:
+    cmd: "vault read auth/approle/role/jenkins-role/role-id -format=json"
+  register: role_id
+
+- name: reset secret id
+  no_log: true
+  environment: 
+    VAULT_ADDR: "{{ vault_addr }}"
+  command:
+    cmd: "vault write -f auth/approle/role/jenkins-role/secret-id -format=json"
+  register: secret_id
+
+- name: Save vault Initialization data
+  copy:
+    content: |-
+      role_id: "{{ role_id['data']['role_id'] }}"
+      secret_id: {{ secret_id['data']['secret_id'] }}
+    dest: "{{ vault_storage_path }}/approle.json"
+    backup: true
+...

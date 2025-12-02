@@ -1,0 +1,25 @@
+ui = true
+disable_cache = true
+disable_mlock = true
+
+storage "file" {
+  path = "{{ vault_storage_path }}"
+}
+
+
+# setup listener
+{% if not vault_tls_enabled %}
+# HTTP Listener
+listener "tcp" {
+  address       = "0.0.0.0:{{ vault_port | default('8200') }}"
+  tls_disable = 1
+}
+
+{% else %}
+# HTTPS Listener
+listener "tcp" {
+  address       = "0.0.0.0:{{ vault_port | default('8200') }}"
+  tls_cert_file = "/opt/vault/tls/tls.crt"
+  tls_key_file  = "/opt/vault/tls/tls.key"
+}
+{% endif %}

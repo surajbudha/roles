@@ -1,0 +1,26 @@
+---
+# Install Hashicorp terraform
+
+# Load variables
+- name: Load ubuntu variables
+  include_vars: "{{ role_path }}/vars/ubuntu.yml"
+
+- name: install Hashicorp gpg key
+  apt_key:
+    url: "{{ hashicorp_repo_key_url }}"
+    state: present
+  register: gpg_key
+
+- name: Add HashiCorp APT repository
+  apt_repository:
+    repo: "deb {{ hashicorp_repo_url }} {{ ansible_facts.lsb.codename }} main"
+    filename: "hashicorp"
+    state: present
+
+- name: Install terraform
+  apt:
+    name: terraform
+    state: present
+    update_cache: yes
+
+...
