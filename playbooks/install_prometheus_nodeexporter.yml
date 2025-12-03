@@ -1,0 +1,10 @@
+---
+- hosts: all
+  become: true
+
+  tasks:
+    - name: call role install prometheus
+      include_role:
+        name: Install_prometheus_nodeexporter
+
+...

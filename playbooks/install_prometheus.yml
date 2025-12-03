@@ -1,0 +1,25 @@
+---
+- hosts: prometheus
+  become: true
+
+  vars:
+    #job_name: pushgateway
+    #target_host_name: 192.168.56.102
+    #target_port: 9091
+    job_name: node_export
+    target_host_name: 192.168.56.102
+    target_port: 9100
+
+  tasks:
+    - name: Reload Prometheus
+      uri:
+        url: "http://localhost:9090/-/reload"
+        method: POST
+        status_code: 200
+
+    - name: call role install prometheus
+      include_role:
+        name: Install_prometheus
+      tags: ['install', 'add_targets']
+
+...

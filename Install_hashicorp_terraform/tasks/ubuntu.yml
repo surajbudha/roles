@@ -1,6 +1,5 @@
 ---
-# Install Hashicorp terraform
-
+# Install Hashicorp terrafor
 # Load variables
 - name: Load ubuntu variables
   include_vars: "{{ role_path }}/vars/ubuntu.yml"

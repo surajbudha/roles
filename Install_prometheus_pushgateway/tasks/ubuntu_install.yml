@@ -1,0 +1,72 @@
+---
+- name: Load ubuntu variables
+  include_vars: ubuntu.yml
+
+- name: Ensure pushgateway user exists
+  user:
+    name: "{{ pushgateway_user }}"
+    shell: /sbin/nologin
+    system: yes
+
+- name: Create installation directory
+  file:
+    path: "{{ pushgateway_install_dir }}"
+    state: directory
+    owner: "{{ pushgateway_user }}"
+    group: "{{ pushgateway_group }}"
+    mode: "0755"
+
+- name: Download Pushgateway archive
+  get_url:
+    url: >-
+      https://github.com/prometheus/pushgateway/releases/download/v
+      {{ pushgateway_version }}
+      /pushgateway-
+      {{ pushgateway_version }}
+      .linux-amd64.tar.gz"
+    dest: "/tmp/pushgateway.tar.gz"
+    mode: '0644'
+
+- name: Extract Pushgateway
+  unarchive:
+    src: "/tmp/pushgateway.tar.gz"
+    dest: "{{ pushgateway_install_dir }}"
+    remote_src: yes
+    extra_opts: [--strip-components=1]
+
+- name: Copy Pushgateway binary
+  copy:
+    src: "{{ pushgateway_install_dir }}/pushgateway"
+    dest: "{{ pushgateway_bin_dir }}/pushgateway"
+    mode: '0755'
+    remote_src: yes
+
+- name: Create systemd service file
+  copy:
+    dest: /etc/systemd/system/pushgateway.service
+    content: |
+      [Unit]
+      Description=Prometheus Pushgateway
+      Wants=network-online.target
+      After=network-online.target
+      [Service]
+      Type=simple
+      User={{ pushgateway_user }}
+      ExecStart={{ pushgateway_bin_dir }}/pushgateway \
+        --web.listen-address=":9091"
+      Restart=on-failure
+      RestartSec=5s
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: true
+
+- name: Enable and start Pushgateway
+  systemd:
+    name: pushgateway
+    enabled: yes
+    state: started
+
+...

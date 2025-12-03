@@ -1,0 +1,22 @@
+---
+# reload prometheus conf file
+- name: Reload Prometheus
+  uri:
+    url: "http://localhost:9090/-/reload"
+    method: POST
+    status_code: 200
+    user: admin
+    password: "{{ admin_password }}"
+    force_basic_auth: yes
+
+- name: Reload systemd
+  systemd:
+    daemon_reload: yes
+
+- name: Enable and start Prometheus
+  systemd:
+    name: prometheus
+    state: started
+    enabled: yes
+
+...

@@ -1,0 +1,175 @@
+---
+# load ubuntu variables
+- name: Load variables
+  include_vars: ubuntu.yml
+  tags: ['install']
+
+- name: Generate bcrypt hash for admin password
+  command: "/usr/bin/gen-pass.py {{ admin_password }}"
+  tags: ['install']
+  register: prometheus_admin_password
+
+- debug:
+    msg: "{{ prometheus_admin_password.stdout }}"
+  tags: ['install']
+
+- name: Ensure prometheus user exists
+  tags: ['install']
+  user:
+    name: "{{ prometheus_user }}"
+    system: yes
+    shell: /usr/sbin/nologin
+
+- name: Create directories
+  tags: ['install']
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    mode: '0755'
+  loop:
+    - "{{ prometheus_config_dir }}"
+    - "{{ prometheus_data_dir }}"
+
+- name: Download Prometheus archive
+  tags: ['install']
+  get_url:
+    url: >-
+      https://github.com/prometheus/prometheus/releases/download/v
+      {{ prometheus_version }}
+      /prometheus-
+      {{ prometheus_version }}
+      .linux-amd64.tar.gz
+    dest: "/tmp/prometheus.tar.gz"
+    mode: '0644'
+
+- name: Extract Prometheus archive
+  tags: ['install']
+  unarchive:
+    src: "/tmp/prometheus.tar.gz"
+    dest: "/tmp"
+    remote_src: yes
+
+- name: Copy Prometheus binaries
+  tags: ['install']
+  copy:
+    remote_src: true
+    src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}"
+    dest: "{{ prometheus_install_dir }}/{{ item }}"
+    mode: '0755'
+    backup: true
+  loop:
+    - prometheus
+    - promtool
+
+- name: Copy consoles and console_libraries
+  tags: ['install']
+  copy:
+    remote_src: true
+    src: "/tmp/prometheus-{{ prometheus_version }}.linux-amd64/{{ item }}"
+    dest: "{{ prometheus_config_dir }}/{{ item }}"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    backup: true
+  loop:
+    - consoles
+    - console_libraries
+
+- name: Create Prometheus config
+  tags: ['install']
+  blockinfile:
+    path: "{{ prometheus_config_dir }}/prometheus.yml"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    mode: '0644'
+    backup: true
+    marker_begin: "##### This file is managed by Ansible #####"
+    marker_end: "##### End Of File #####"
+    state: present
+    create: true
+    block: |
+      global:
+        scrape_interval: 15s
+        evaluation_interval: 15s
+        scrape_timeout: 10s
+      scrape_configs:
+        - job_name: 'prometheus'
+          basic_auth:
+            username: admin
+            password: {{ admin_password }}
+          static_configs:
+            - targets: ['localhost:9090']
+        - job_name: 'node_export'
+          static_configs:
+            - targets: ['localhost:9100']
+
+- name: Create web config
+  tags: ['install']
+  blockinfile:
+    path: "{{ prometheus_config_dir }}/web.yml"
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+    mode: '0644'
+    backup: true
+    marker_begin: "##### This file is managed by Ansible #####"
+    marker_end: "##### End Of File #####"
+    state: present
+    create: true
+    block: |
+      basic_auth_users:
+        admin: {{ prometheus_admin_password.stdout }}
+
+- name: Fetch and save prometheus.yml config file to files for backup
+  fetch:
+    src: "{{ prometheus_config_dir }}/prometheus.yml"
+    dest: files/
+  tags: ['install']
+
+- name: Fetch and save web.yml config file to files for backup
+  fetch:
+    src: "{{ prometheus_config_dir }}/web.yml"
+    dest: files/
+  tags: ['install']
+
+- name: Create systemd service
+  tags: ['install']
+  blockinfile:
+    path: /etc/systemd/system/prometheus.service
+    mode: '0644'
+    backup: true
+    marker_begin: "##### This file is managed by Ansible #####"
+    marker_end: "##### End Of File #####"
+    state: present
+    create: true
+    block: |
+      [Unit]
+      Description=Prometheus Monitoring
+      Wants=network-online.target
+      After=network-online.target
+      [Service]
+      User={{ prometheus_user }}
+      Group={{ prometheus_user }}
+      Type=simple
+      Restart=on-failure
+      ExecStart={{ prometheus_install_dir }}/prometheus \
+        --config.file {{ prometheus_config_dir }}/prometheus.yml \
+        --storage.tsdb.path {{ prometheus_data_dir }} \
+        --web.console.templates /etc/prometheus/consoles \
+        --web.console.libraries /etc/prometheus/console_libraries \
+        --web.listen-address 0.0.0.0:9090 \
+        --web.enable-lifecycle \
+        --web.config.file {{ prometheus_config_dir }}/web.yml
+      [Install]
+      WantedBy=multi-user.target
+  notify:
+    - Reload systemd
+    - Enable and start Prometheus
+
+- name: Fetch and save web.yml config file to files for backup
+  fetch:
+    src: "/etc/systemd/system/prometheus.service"
+    dest: files/
+  tags: ['install']
+
+...

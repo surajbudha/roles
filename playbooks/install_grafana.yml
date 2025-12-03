@@ -1,0 +1,10 @@
+---
+- hosts: prometheus
+  become: true
+
+  tasks:
+    - name: call role install grafana
+      include_role:
+        name: Install_grafana
+
+...

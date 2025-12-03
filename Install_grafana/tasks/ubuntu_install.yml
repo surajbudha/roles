@@ -1,0 +1,42 @@
+---
+- name: Load ubuntu variables
+  include_vars: ubuntu.yml
+
+- name: Install prerequisite packages
+  apt:
+    name:
+      - apt-transport-https
+      - software-properties-common
+      - wget
+    state: present
+    update_cache: yes
+
+- name: Add Grafana GPG key
+  apt_key:
+    url: "{{ grafana_key_url }}"
+    state: present
+
+- name: Add Grafana APT repository
+  apt_repository:
+    repo: "deb {{ grafana_repo }} stable main"
+    state: present
+
+- name: Install Grafana
+  apt:
+    name: grafana
+    state: latest
+    update_cache: yes
+
+- name: configure prometheus as the datasource
+  template:
+    src: datasource.yml
+    dest: /etc/grafana/provisioning/datasources/datasources.yml
+    backup: true
+
+- name: Enable and start Grafana service
+  systemd:
+    name: grafana-server
+    enabled: yes
+    state: started
+
+...

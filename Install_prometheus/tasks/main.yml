@@ -1,0 +1,27 @@
+---
+- name: Check if the neccessary variables are provided
+  assert:
+    that:
+      - admin_password is defined
+      - admin_password is string
+      - admin_password | length <= 72
+    fail_msg: "this role requires admin password"
+  tags: ['install', 'add_targets']
+
+- name: copy password hashing script
+  copy:
+    src: gen-pass.py
+    dest: /usr/bin/
+    mode: u=rwx,g=rx,o=rx
+  tags: ['install', 'add_targets']
+
+- name: Call play to install prometheus
+  include_tasks: ubuntu_install.yml
+  when: ansible_facts.os_family == "Debian"
+  tags: ['install']
+
+- name: Call play to add targets
+  include_tasks: add_targets.yml
+  tags: ['add_targets']
+
+...

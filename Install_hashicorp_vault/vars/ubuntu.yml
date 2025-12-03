@@ -1,7 +1,11 @@
+---
 hashicorp_repo_key_url: "https://apt.releases.hashicorp.com/gpg"
 hashicorp_repo_url: "https://apt.releases.hashicorp.com"
 vault_port: 8200
 vault_storage_path: /opt/vault/data
 vault_tls_enabled: "{{ vault_tls | bool | default(false) }}"
 vault_fqdn: "myvault.in"
-vault_addr: "{{ vault_tls_enabled | ternary('https', 'http') }}://{{ vault_fqdn }}:{{ vault_port }}"
+vault_dest: "{{vault_fqdn}}:{{vault_port}}"
+vault_addr: "{{vault_tls_enabled|ternary('https', 'http')}}://{{vault_dest}}"
+
+...

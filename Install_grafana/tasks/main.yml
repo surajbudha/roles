@@ -1,0 +1,13 @@
+---
+- name: Check if the prometheus admin password is provided
+  assert:
+    that:
+      - prometheus_admin_password is defined
+      - prometheus_admin_password is string
+    fail_msg: "Provide prometheus admin password"
+
+- name: Call ubuntu install task
+  include_tasks: ubuntu_install.yml
+  when: ansible_facts.os_family == "Debian"
+
+...

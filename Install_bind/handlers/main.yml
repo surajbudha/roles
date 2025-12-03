@@ -1,0 +1,7 @@
+---
+- name: Restart Bind9
+  systemd:
+    name: bind9
+    state: restarted
+
+...

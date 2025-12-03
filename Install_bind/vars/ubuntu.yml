@@ -1,0 +1,8 @@
+---
+dns_domain: "mytestdomain.in"
+dns_zone_file: "/etc/bind/db.{{ dns_domain }}"
+dns_network: "192.168.2"
+dns_reverse_zone: "2.168.192.in-addr.arpa"
+dns_reverse_zone_file: "/etc/bind/db.192.168.2"
+
+...

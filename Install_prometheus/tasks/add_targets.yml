@@ -1,0 +1,112 @@
+---
+# Include default vars
+- name: Include default vars
+  include_vars: ubuntu.yml
+  tags: ['add_targets']
+
+- name: Generate bcrypt hash for admin password
+  command: "/usr/bin/gen-pass.py {{ admin_password }}"
+  tags: ['add_targets']
+  register: prometheus_admin_password
+
+- debug:
+    msg: "{{ prometheus_admin_password.stdout }}"
+  tags: ['add_targets']
+
+#- name: Replace file from the git
+
+
+# Fetch existing targets
+- name: fetch targets from conf file
+  command: "cat {{ prometheus_config_dir }}/prometheus.yml"
+  register: prometheus_config
+  tags: ['add_targets']
+
+- name: Store config file as dict
+  set_fact:
+    prometheus_config_yaml: "{{ prometheus_config.stdout | from_yaml }}"
+  tags: ['add_targets']
+
+# jinja to create new config file
+- name: Show current targets
+  set_fact:
+    new_content: |-
+      {%- for key in prometheus_config_yaml -%}
+      {%- if key == "global" -%}
+      global:
+      {% for sc in prometheus_config_yaml[key] %}
+          {{ sc }}: {{ prometheus_config_yaml[key][sc] }}
+      {% endfor %}
+      {%- elif key == 'scrape_configs' -%}
+      {%- if job_name not in prometheus_config_yaml[key] | join(' ') -%}
+      scrape_configs:
+      {% for sc in prometheus_config_yaml[key] %}
+        - job_name: "{{ sc.job_name }}"
+      {% if 'basic_auth' in sc %}
+          basic_auth:
+            username: admin
+            password: {{ admin_password }}
+      {% endif %}
+          static_configs:
+      {% for cfg in sc.static_configs %}
+      {%- for t in cfg.targets %}
+            - targets: ["{{ t }}"]
+      {% endfor %}
+      {% endfor %}
+      {% endfor %}
+        - job_name: "{{ job_name }}"
+          static_configs:
+            - targets: ["{{ target_host_name }}:{{ target_port }}"]
+      {%- elif job_name in prometheus_config_yaml[key] | join(' ') -%}
+      scrape_configs:
+      {% for sc in prometheus_config_yaml[key] %}
+        - job_name: "{{ sc.job_name }}"
+      {% if 'basic_auth' in sc %}
+          basic_auth:
+            username: admin
+            password: {{ admin_password }}
+      {% endif %}
+          static_configs:
+      {% for cfg in sc.static_configs %}
+      {%- for t in cfg.targets %}
+            - targets: ["{{ t }}"]
+      {% endfor %}
+      {% set j_targets = cfg.targets | join(' ') %}
+      {% if sc.job_name == job_name and target_host_name not in j_targets %}
+            - targets: ["{{ target_host_name }}:{{ target_port }}"]
+      {% endif %}
+      {% endfor %}
+      {% endfor %}
+      {% endif %}
+      {% endif %}
+      {%- endfor -%}
+  tags: ['add_targets']
+
+- name: Show new content
+  debug:
+    msg: "{{ new_content | to_yaml }}"
+  tags: ['add_targets']
+
+# - name: test fail
+#   fail:
+#     msg: "test fail"
+#   tags: ['add_targets']
+
+# Copy modified content to the prometheus conf file
+- name: Write variable content to file
+  copy:
+    dest: "/etc/prometheus/prometheus.yml"
+    content: "{{ new_content }}"
+    mode: '0644'
+    backup: true
+    owner: "{{ prometheus_user }}"
+    group: "{{ prometheus_user }}"
+  tags: ['add_targets']
+  notify: Reload Prometheus
+
+- name: Fetch and save prometheus.yml config file to files for backup
+  fetch:
+    src: "/etc/prometheus/prometheus.yml"
+    dest: files/
+  tags: ['add_targets']
+...

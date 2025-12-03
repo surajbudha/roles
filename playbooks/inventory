@@ -1,0 +1,7 @@
+[prometheus]
+#prometheus.mytestdomain.in
+192.168.2.101
+
+[jenkins]
+#jenkins.mytestdomain.in
+192.168.2.2

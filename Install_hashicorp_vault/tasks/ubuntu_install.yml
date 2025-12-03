@@ -21,7 +21,7 @@
 
     - name: Add HashiCorp APT repository
       apt_repository:
-        repo: "deb {{ hashicorp_repo_url }} {{ ansible_facts.lsb.codename }} main"
+        repo: "deb {{hashicorp_repo_url}} {{ansible_facts.lsb.codename}} main"
         filename: "hashicorp"
         state: present
 
@@ -70,7 +70,7 @@
   no_log: false
   command:
     cmd: vault operator init -format json
-  environment: 
+  environment:
     VAULT_ADDR: "{{ vault_addr }}"
   register: vault_init
 
@@ -87,7 +87,7 @@
 
 - name: Unseal the vault
   no_log: true
-  environment: 
+  environment:
     VAULT_ADDR: "{{ vault_addr }}"
   command:
     cmd: "vault operator unseal -format json {{ item }}"
@@ -95,7 +95,7 @@
 
 - name: Vault status
   no_log: true
-  environment: 
+  environment:
     VAULT_ADDR: "{{ vault_addr }}"
   command:
     cmd: "vault status -format json"
@@ -107,16 +107,17 @@
 
 - name: Create auth role for approle jenkins
   no_log: true
-  environment: 
+  environment:
     VAULT_ADDR: "{{ vault_addr }}"
   command:
     cmd: |-
       vault auth enable approle
-      vault write auth/approle/role/jenkins-role token_num_uses=0 secret_id_num_uses=0 policies="jenkins"
+      vault write auth/approle/role/jenkins-role \
+      token_num_uses=0 secret_id_num_uses=0 policies="jenkins"
 
 - name: read role ID
   no_log: true
-  environment: 
+  environment:
     VAULT_ADDR: "{{ vault_addr }}"
   command:
     cmd: "vault read auth/approle/role/jenkins-role/role-id -format=json"
@@ -124,7 +125,7 @@
 
 - name: reset secret id
   no_log: true
-  environment: 
+  environment:
     VAULT_ADDR: "{{ vault_addr }}"
   command:
     cmd: "vault write -f auth/approle/role/jenkins-role/secret-id -format=json"

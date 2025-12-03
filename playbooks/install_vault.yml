@@ -1,0 +1,10 @@
+---
+- hosts: localhost
+  become: true
+
+  tasks:
+    - name: call role install terraform
+      include_role:
+        name: Install_hashicorp_vault
+
+...

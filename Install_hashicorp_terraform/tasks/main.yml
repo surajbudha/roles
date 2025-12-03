@@ -2,6 +2,6 @@
 # Play tasks for ubuntu
 - name: Call ubuntu install task Play
   include_tasks: ubuntu.yml
-  when: ansible_facts.os_family == "Debian" or ansible_facts.os_family == "Ubuntu"
+  when: ansible_facts.os_family in ["Debian", "Ubuntu"]
 
-...  
+...
